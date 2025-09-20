@@ -368,6 +368,7 @@ set(VM_SOURCES_WKS
     profilermetadataemitvalidator.cpp
     profilingenumerators.cpp
     profilinghelper.cpp
+    profilinghelper_chain.cpp
     proftoeeinterfaceimpl.cpp
     qcall.cpp
     reflectclasswriter.cpp

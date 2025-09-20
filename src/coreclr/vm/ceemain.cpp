@@ -1410,6 +1410,7 @@ void STDMETHODCALLTYPE EEShutDownHelper(BOOL fIsDllUnloading)
                 BEGIN_PROFILER_CALLBACK(CORProfilerPresent());
                 GCX_PREEMP();
                 (&g_profControlBlock)->Shutdown();
+                ProfilingAPIUtility::ChainVirtualDetachIfAny(1);
                 END_PROFILER_CALLBACK();
             }
 

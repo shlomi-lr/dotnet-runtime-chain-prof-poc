@@ -68,11 +68,18 @@ public:
     static void TerminateProfiling(ProfilerInfo *pProfilerInfo);
     static void LogProfError(int iStringResourceID, ...);
     static void LogProfInfo(int iStringResourceID, ...);
+    static void ChainRecordSession(HMODULE hResident, ULONGLONG sessionId);
+    // CHAIN: notify resident on shutdown if virtual attach was accepted
+    static void ChainVirtualDetachIfAny(DWORD reason);
     static void LogNoInterfaceError(REFIID iidRequested, LPCWSTR wszClsid);
     INDEBUG(static BOOL ShouldInjectProfAPIFault(ProfAPIFaultFlags faultFlag);)
 
     // See code:ProfilingAPIUtility::InitializeProfiling#LoadUnloadCallbackSynchronization
     static CRITSEC_COOKIE GetStatusCrst();
+
+    // Chain-mode gate (evaluated at startup). COMPlus_ProfilerChain aliases CORECLR_PROFILER_CHAIN.
+    static bool IsChainModeEnabled();
+
 
 private:
     // ---------------------------------------------------------------------------------------
