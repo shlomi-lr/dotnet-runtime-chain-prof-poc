@@ -1191,7 +1191,35 @@ HRESULT ProfilingAPIUtility::LoadProfiler(
             if (g_profControlBlock.mainProfilerInfo.curProfStatus.Get() != kProfStatusNone)
             {
                 LogProfError(IDS_PROF_ALREADY_LOADED);
-                return CORPROF_E_PROFILER_ALREADY_ACTIVE;
+            // CHAIN PoC: allow resident chain host to accept attach
+            if (loadType == kAttachLoad)
+            {
+                WCHAR dummy[2];
+                if (GetEnvironmentVariableW(W("CORECLR_PROFILER_CHAIN"), dummy, 1) > 0)
+                {
+                    EEToProfInterfaceImpl* pResident = g_profControlBlock.mainProfilerInfo.pProfInterface;
+                    if (pResident != NULL)
+                    {
+                        HMODULE hMod = pResident->GetProfilerHModule();
+                        if (hMod != NULL)
+                        {
+                            typedef HRESULT (STDAPICALLTYPE *PFN_ProfilerChain_AttachOffer)(const GUID*, const WCHAR*, const BYTE*, UINT, ULONGLONG*);
+                            PFN_ProfilerChain_AttachOffer pfnOffer = (PFN_ProfilerChain_AttachOffer) GetProcAddress(hMod, "ProfilerChain_AttachOffer");
+                            if (pfnOffer != NULL)
+                            {
+                                ULONGLONG sessionId = 0;
+                                HRESULT hrOffer = pfnOffer(pClsid, wszProfilerDLL, (const BYTE*)pvClientData, cbClientData, &sessionId);
+                                if (SUCCEEDED(hrOffer) && hrOffer == S_OK)
+                                {
+                                    (void)pResident->InitializeForAttach(pvClientData, cbClientData);
+                                    return S_OK;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return CORPROF_E_PROFILER_ALREADY_ACTIVE;
             }
 
             // This profiler cannot be a notification only profiler

@@ -129,6 +129,10 @@ public:
 
     HRESULT ProfilerAttachComplete();
 
+    // PoC helper: expose profiler module handle for runtime internal use
+    // Used by ProfilingAPIUtility to resolve optional chaining exports
+    inline HMODULE GetProfilerHModule() const { return m_hmodProfilerDLL; }
+
     //
     // Thread Events
     //
