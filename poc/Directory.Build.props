@@ -1,0 +1,1 @@
+<Project><PropertyGroup><EnableNETAnalyzers>false</EnableNETAnalyzers><AnalysisLevel>none</AnalysisLevel><NoWarn>;IDE0073;SA1400</NoWarn></PropertyGroup></Project>

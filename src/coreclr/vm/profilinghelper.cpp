@@ -411,6 +411,9 @@ EXTERN_C void STDMETHODCALLTYPE ProfileTailcallNaked(UINT_PTR clientData);
 //    which depends on these assumptions) to verify.
 
 // static
+// Forward declaration for chain-mode gate
+static void Chain_EvaluateGateOnce();
+
 HRESULT ProfilingAPIUtility::InitializeProfiling()
 {
     CONTRACTL
@@ -430,6 +433,10 @@ HRESULT ProfilingAPIUtility::InitializeProfiling()
 
     // NULL out / initialize members of the global profapi structure
     g_profControlBlock.Init();
+
+    // Evaluate chain-mode gate once at startup
+    Chain_EvaluateGateOnce();
+
 
     if (IsCompilationProcess())
     {
@@ -885,6 +892,46 @@ HRESULT ProfilingAPIUtility::PerformDeferredInit()
     return S_OK;
 }
 
+
+// ===== CHAIN (gate): evaluate once at startup =====
+static Volatile<bool> s_chainGateInit(false);
+static Volatile<bool> s_chainEnabled(false);
+
+static bool Chain_IsTruthyEnv(const WCHAR* name)
+{
+    WCHAR buf[16];
+    DWORD c = GetEnvironmentVariableW(name, buf, (DWORD)(sizeof(buf)/sizeof(buf[0])));
+    if (c == 0 || c >= (sizeof(buf)/sizeof(buf[0]))) return false;
+    for (DWORD i = 0; i < c; i++) { buf[i] = towlower(buf[i]); }
+    if (wcsncmp(buf, W("1"), 1) == 0) return true;
+    if (wcsncmp(buf, W("y"), 1) == 0) return true;
+    if (wcsncmp(buf, W("t"), 1) == 0) return true; // true
+    if (wcsncmp(buf, W("on"), 2) == 0) return true;
+    if (wcsncmp(buf, W("yes"), 3) == 0) return true;
+    if (wcsncmp(buf, W("true"), 4) == 0) return true;
+    return false;
+}
+
+static void Chain_EvaluateGateOnce()
+{
+    if (s_chainGateInit.Load()) return;
+    bool a = Chain_IsTruthyEnv(W("CORECLR_PROFILER_CHAIN"));
+    bool b = Chain_IsTruthyEnv(W("COMPlus_ProfilerChain"));
+    if (a != b && (a || b))
+    {
+        LOG((LF_CORPROF, LL_INFO10, "**PROF: Chain gate env mismatch: CORECLR_PROFILER_CHAIN=%d, COMPlus_ProfilerChain=%d; using logical OR.\n", a ? 1 : 0, b ? 1 : 0));
+    }
+    bool enabled = (a || b);
+    s_chainEnabled.Store(enabled);
+    s_chainGateInit.Store(true);
+    LOG((LF_CORPROF, LL_INFO10, "**PROF: Chain gate initialized: %s\n", enabled ? "ENABLED" : "disabled"));
+}
+
+bool ProfilingAPIUtility::IsChainModeEnabled()
+{
+    return s_chainEnabled.Load();
+}
+
 // static
 HRESULT ProfilingAPIUtility::DoPreInitialization(
         EEToProfInterfaceImpl *pEEProf,
@@ -1191,7 +1238,37 @@ HRESULT ProfilingAPIUtility::LoadProfiler(
             if (g_profControlBlock.mainProfilerInfo.curProfStatus.Get() != kProfStatusNone)
             {
                 LogProfError(IDS_PROF_ALREADY_LOADED);
-                return CORPROF_E_PROFILER_ALREADY_ACTIVE;
+            // CHAIN PoC: allow resident chain host to accept attach
+            if (loadType == kAttachLoad)
+            {
+                WCHAR dummy[2];
+                if (ProfilingAPIUtility::IsChainModeEnabled())
+                {
+                    EEToProfInterfaceImpl* pResident = g_profControlBlock.mainProfilerInfo.pProfInterface;
+                    if (pResident != NULL)
+                    {
+                        HMODULE hMod = pResident->GetProfilerHModule();
+                        if (hMod != NULL)
+                        {
+                            typedef HRESULT (STDAPICALLTYPE *PFN_ProfilerChain_AttachOffer)(const GUID*, const WCHAR*, const BYTE*, UINT, ULONGLONG*);
+                            ProfilingAPIUtility::ChainVirtualDetachIfAny(0);
+                            PFN_ProfilerChain_AttachOffer pfnOffer = (PFN_ProfilerChain_AttachOffer) GetProcAddress(hMod, "ProfilerChain_AttachOffer");
+                            if (pfnOffer != NULL)
+                            {
+                                ULONGLONG sessionId = 0;
+                                HRESULT hrOffer = pfnOffer(pClsid, wszProfilerDLL, (const BYTE*)pvClientData, cbClientData, &sessionId);
+                                if (SUCCEEDED(hrOffer) && hrOffer == S_OK)
+{
+    ProfilingAPIUtility::ChainRecordSession(hMod, sessionId);
+(void)pResident->InitializeForAttach(pvClientData, cbClientData);
+                                    return S_OK;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return CORPROF_E_PROFILER_ALREADY_ACTIVE;
             }
 
             // This profiler cannot be a notification only profiler
