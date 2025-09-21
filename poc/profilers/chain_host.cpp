@@ -5,7 +5,6 @@
 #include <dlfcn.h>
 #include <stdint.h>
 
-#include "pal_mstypes.h"
 #include "corprof.h"
 
 // Host CLSID: {2A2A2A2A-2A2A-2A2A-2A2A-2A2A2A2A2A2A}

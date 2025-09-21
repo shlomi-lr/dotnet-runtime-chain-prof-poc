@@ -1,6 +1,5 @@
 #include <atomic>
 
-#include "pal_mstypes.h"
 #include "corprof.h"
 
 // NOP CLSID: {3B3B3B3B-3B3B-3B3B-3B3B-3B3B3B3B3B3B}

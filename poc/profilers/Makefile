@@ -1,15 +1,36 @@
-CXX=clang++
-CXXFLAGS=-fPIC -I../../src/coreclr/inc -I../../src/coreclr/pal/prebuilt/inc -O2 -std=c++17
-LDFLAGS=-shared
-LDLIBS=
+CXX ?= clang++
+OS := $(shell uname)
 
-all: ChainHost.so NopProfiler.so
+# Choose shared library extension and linker flags per platform
+ifeq ($(OS),Darwin)
+  EXT=dylib
+  SHARED_FLAG=-dynamiclib
+else
+  EXT=so
+  SHARED_FLAG=-shared
+endif
 
-ChainHost.so: chain_host.cpp
-	  -o  $^  
+INCLUDES= \
+  -I../../src/coreclr/pal/prebuilt/inc \
+  -I../../src/coreclr/pal/inc/rt \
+  -I../../src/coreclr/pal/inc \
+  -I../../src/coreclr/inc
 
-NopProfiler.so: nop_profiler.cpp
-	  -o  $^  
+CXXFLAGS ?= -O2 -fPIC -std=c++17 $(INCLUDES)
+LDFLAGS ?= $(SHARED_FLAG)
+LDLIBS ?=
+
+HOST_LIB=ChainHost.$(EXT)
+NOP_LIB=NopProfiler.$(EXT)
+
+.PHONY: all clean
+all: $(HOST_LIB) $(NOP_LIB)
+
+$(HOST_LIB): chain_host.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+$(NOP_LIB): nop_profiler.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
-	rm -f ChainHost.so NopProfiler.so
+	rm -f $(HOST_LIB) $(NOP_LIB)
