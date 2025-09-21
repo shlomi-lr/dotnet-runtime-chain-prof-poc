@@ -52,6 +52,14 @@ echo "App: $APP_DLL"
 echo "Resident: $HOST_LIB ($HOST_GUID)"
 echo "Hosted:  $NOP_LIB ($NOP_GUID)"
 
+if [[ ! -f "$HOST_LIB" || ! -f "$NOP_LIB" ]]; then
+  echo "Profiler libraries not found."
+  echo "  HOST_LIB=$HOST_LIB"
+  echo "  NOP_LIB=$NOP_LIB"
+  echo "Build them (default) or set HOST_LIB/NOP_LIB to existing paths."
+  exit 2
+fi
+
 COMPLUS=COMPlus_ProfilerChain
 # Use either COMPlus_ProfilerChain or CORECLR_PROFILER_CHAIN
 CHAIN_ENV="COMPlus_ProfilerChain=1"
